@@ -1,0 +1,19 @@
+{
+  "sim_name": "simulation_",
+  "sim_num": "102",
+  "epochs": 5,
+  "resolution": "epoch",
+  "batch_size": 64,
+  "learning_rate": 0.01,
+  "momentum": 0.9,
+  "rho": 2.5,
+  "tau": 1,
+  "workers_number": 4,
+  "live_results": "False",
+  "optimizer": "synchronous",
+  "initialization": "uniform",
+  "data_permutation": "False",
+  "gpu": "True",
+  "gpu_number": 3
+}
+
