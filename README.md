@@ -1,7 +1,5 @@
 # CIFAR-10
 
-<dl>
-
 <!DOCTYPE html>
 <html lang="en">
     <head>
@@ -70,5 +68,5 @@
         </script>
     </body>
 </html>
-</dl>
+
 
