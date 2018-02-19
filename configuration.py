@@ -20,7 +20,6 @@ class Configuration(object):
         self.simulation_name = params_dic['sim_name']
         self.epochs = params_dic['epochs']
         self.batch_size = params_dic['batch_size']  # mini batch size
-        self.records_number = round(params_dic['epochs'])
         self.learning_rate = params_dic['learning_rate']
         self.momentum = params_dic['momentum']
         self.rho = params_dic['rho']
@@ -36,7 +35,7 @@ class Configuration(object):
         self.initialization = params_dic['initialization']
         self.permute = eval(params_dic['data_permutation'])
 
-        self.iterations_per_epoch = self.batch_size * 50000
+        self.iterations_per_epoch = 50000 / self.batch_size
         if self.optimizer == 'synchronous':
             self.iterations_per_epoch = round(self.iterations_per_epoch / self.workers_number)
 

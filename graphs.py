@@ -2,6 +2,11 @@ import argparse
 import os
 import json
 import pickle
+import pandas
+import html
+from bokeh.embed import file_html
+from bokeh.resources import CDN
+from bokeh.layouts import column, row
 from bokeh.plotting import figure, curdoc, output_file, show, save
 from bokeh.palettes import Category10 as palette
 from bokeh.models import NumeralTickFormatter
@@ -21,23 +26,34 @@ def create_graphs(sim_num=None, variable=None, resolution=None):
     folder_name = 'simulation_{}'.format(sim_num)
     colors = palette[10]
 
+    if resolution == 'epoch':
+        x_axis_label = 't [Epochs]'
+    else:
+        x_axis_label = 'Iterations'
+
     p_loss = figure(plot_width=600, plot_height=600, min_border=10, min_border_left=50,
-                    x_axis_label='t [Epochs]', y_axis_label='L(w(t))',
-                    title="Training Loss", y_axis_type='log', x_axis_type='log')
+                    x_axis_label=x_axis_label, y_axis_label='L(w(t))',
+                    title="Training & Test Loss", y_axis_type='log', x_axis_type='log')
     p_loss.background_fill_color = "#fafafa"
 
+    p_norm_normalized = figure(plot_width=600, plot_height=600, min_border=10, min_border_left=50,
+                               x_axis_label=x_axis_label, y_axis_label='||w(t)|| Normalized',
+                               title="The Norm of w(t) - Normalized Per Run", x_axis_type='log', y_axis_type='log')
+    p_norm_normalized.background_fill_color = "#fafafa"
+
     p_norm = figure(plot_width=600, plot_height=600, min_border=10, min_border_left=50,
-                    x_axis_label='t [Epochs]', y_axis_label='||w(t)|| Normalized',
-                    title="The Norm of w(t) - Normalized", x_axis_type='log')
+                    x_axis_label=x_axis_label, y_axis_label='||w(t)||',
+                    title="The Norm of w(t)", x_axis_type='log', y_axis_type='log')
     p_norm.background_fill_color = "#fafafa"
 
     p_error = figure(plot_width=600, plot_height=600, min_border=10, min_border_left=50,
-                     x_axis_label='t [Epochs]', y_axis_label='Error Rate',
-                     title="Training Error", x_axis_type='log')
+                     x_axis_label=x_axis_label, y_axis_label='Error Rate',
+                     title="Training & Test Error", x_axis_type='log')
     p_error.background_fill_color = "#fafafa"
     p_error.yaxis[0].formatter = NumeralTickFormatter(format="0.0%")
 
-    for idx, file in enumerate(os.listdir(os.path.join(CONFIGURATIONS_DIR, folder_name))):
+    idx = -1
+    for file in os.listdir(os.path.join(CONFIGURATIONS_DIR, folder_name)):
         if file.endswith('.log'):
             continue
         with open(os.path.join(CONFIGURATIONS_DIR, folder_name, file), 'rb') as pickle_in:
@@ -45,32 +61,71 @@ def create_graphs(sim_num=None, variable=None, resolution=None):
         with open(os.path.join(CONFIGURATIONS_DIR, folder_name, file + '.log'), 'rb') as log_file:
             params_dict = json.load(log_file)
         var = params_dict[variable]
-
+        log_table = Table(params_dict)
+        for key in params_dict.keys():
+            log_table.table[key].append(params_dict[key])
+        idx += 1
         legend = str(var)
         stats_train.export_data(handle_loss=p_loss,
                                 handle_error=p_error,
                                 handle_norm=p_norm,
-                                legend='train - ' + legend,
+                                handle_norm_normalized=p_norm_normalized,
+                                legend=legend,
                                 color=colors[idx % 10],
                                 line_dash='solid',
                                 resolution=resolution)
         stats_test.export_data(handle_loss=p_loss,
                                handle_error=p_error,
-                               handle_norm=p_norm,
-                               legend='test - ' + legend,
+                               legend=legend,
                                color=colors[idx % 10],
                                line_dash='dashed',
                                resolution=resolution)
     p_loss.legend.click_policy = "hide"
-    output_file(folder_name + '/loss.html')
-    save(p_loss)
+    p_loss.legend.location = 'bottom_left'
     p_error.legend.click_policy = "hide"
-    output_file(folder_name + '/error.html')
-    save(p_error)
     p_norm.legend.click_policy = "hide"
     p_norm.legend.location = "top_left"
-    output_file(folder_name + '/norm.html')
-    save(p_norm)
+    p_norm_normalized.legend.click_policy = "hide"
+    p_norm_normalized.legend.location = "top_left"
+
+    df = pandas.DataFrame(log_table.table)
+
+    styles = [
+        hover(),
+        dict(selector="th", props=[("font-size", "110%"),
+                                   ("text-align", "center")]),
+        dict(selector="caption", props=[("caption-side", "bottom")])
+    ]
+    table_html = (df.style.set_table_styles(styles)).render()
+
+    grid = column(row(p_loss, p_error), row(p_norm, p_norm_normalized))
+    html_norm = file_html(grid, CDN, folder_name)
+    with open(folder_name + '/' + folder_name + '.html', 'a') as html_file:
+        html_file.write(html_norm)
+    with open(folder_name + '/' + folder_name + '_log.html', 'a') as html_file:
+        html_file.write(table_html)
+
+
+def hover(hover_color="#ffff99"):
+    return dict(selector="tr:hover",
+                props=[("background-color", "%s" % hover_color)])
+
+
+class Singleton(type):
+    _instances = {}
+
+    def __call__(cls, *args, **kwargs):
+        if cls not in cls._instances:
+            cls._instances[cls] = super(Singleton, cls).__call__(*args, **kwargs)
+        return cls._instances[cls]
+
+
+class Table(metaclass=Singleton):
+    def __init__(self, params_dict=None):
+        keys = params_dict.keys()
+        self.table = dict()
+        for key in keys:
+            self.table[key] = list()
 
 
 if __name__ == '__main__':

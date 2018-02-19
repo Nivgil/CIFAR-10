@@ -18,7 +18,6 @@ class StatImage(object):
         self._error = []
         self._norm = []
         self._epochs = params.epochs
-        self._records_number = params.records_number
         self._live_results = params.live_results
         self._log = params
         self._sim_num = params.simulation_number
@@ -37,61 +36,54 @@ class StatImage(object):
             norm = norm + torch.sum((weights_dict[name]).view(-1, 1) ** 2)
         self._norm.append(torch.sqrt(norm).numpy()[0])
 
-    def _visualize_norm(self, handle=None, legend=None, color=None, resolution=None):
+    def _visualize_norm_normalized(self, handle=None, legend=None, color=None, resolution=None):
+        if handle is None:
+            return
         max_norm = self._norm[-1]
         norm = np.divide(self._norm, max_norm)
         if resolution == 'epoch':
-            t = np.arange(0, self._epochs, self._epochs / self._records_number)
+            t = np.arange(1, self._epochs + 1)
         else:
-            t = np.arange(0, self._iterations_per_epoch, self._iterations_per_epoch / self._records_number)
+            t = np.arange(self._iterations_per_epoch, (self._epochs + 1) * self._iterations_per_epoch,
+                          self._iterations_per_epoch)
+        handle.line(t, norm, line_width=3, line_dash='solid', legend=legend, line_color=color)
+
+    def _visualize_norm(self, handle=None, legend=None, color=None, resolution=None):
         if handle is None:
-            handle = figure(plot_width=600, plot_height=600, min_border=10, min_border_left=50,
-                            x_axis_label='t [Epochs]', y_axis_label='||w(t)|| Normalized',
-                            title="The Norm of w(t) - Normalized", x_axis_type='log')
-            handle.background_fill_color = "#fafafa"
-            handle.line(t, norm, line_width=3, line_dash='solid')
-            output_file('training_norm.html')
-            save(handle)
+            return
+        norm = self._norm
+        if resolution == 'epoch':
+            t = np.arange(1, self._epochs + 1)
         else:
-            handle.line(t, norm, line_width=3, line_dash='solid', legend=legend, line_color=color)
+            t = np.arange(self._iterations_per_epoch, (self._epochs + 1) * self._iterations_per_epoch,
+                          self._iterations_per_epoch)
+        handle.line(t, norm, line_width=3, line_dash='solid', legend=legend, line_color=color)
 
     def _visualize_loss(self, handle=None, legend=None, color=None, line_dash=None, resolution=None):
+        if handle is None:
+            return
         loss = self._loss
         if resolution == 'epoch':
-            t = np.arange(0, self._epochs, self._epochs / self._records_number)
+            t = np.arange(1, self._epochs + 1)
         else:
-            t = np.arange(0, self._iterations_per_epoch, self._iterations_per_epoch / self._records_number)
-        if handle is None:
-            handle = figure(plot_width=600, plot_height=600, min_border=10, min_border_left=50,
-                            x_axis_label='t [Epochs]', y_axis_label='L(w(t))',
-                            title="Training Loss", y_axis_type='log', x_axis_type='log')
-            handle.background_fill_color = "#fafafa"
-            handle.line(t, loss, line_width=3, line_dash='solid')
-            output_file('training_loss.html')
-            save(handle)
-        else:
-            handle.line(t, loss, line_width=3, line_dash=line_dash, legend=legend, line_color=color)
+            t = np.arange(self._iterations_per_epoch, (self._epochs + 1) * self._iterations_per_epoch,
+                          self._iterations_per_epoch)
+        handle.line(t, loss, line_width=3, line_dash=line_dash, legend=legend, line_color=color)
 
     def _visualize_error(self, handle=None, legend=None, color=None, line_dash=None, resolution=None):
+        if handle is None:
+            return
         error = self._error
         if resolution == 'epoch':
-            t = np.arange(0, self._epochs, self._epochs / self._records_number)
+            t = np.arange(1, self._epochs + 1)
         else:
-            t = np.arange(0, self._iterations_per_epoch, self._iterations_per_epoch / self._records_number)
-        if handle is None:
-            handle = figure(plot_width=600, plot_height=600, min_border=10, min_border_left=50,
-                            x_axis_label='t [Epochs]', y_axis_label='Error Rate',
-                            title="Training Error", x_axis_type='log')
-            handle.yaxis[0].formatter = NumeralTickFormatter(format="0.0%")
-            handle.background_fill_color = "#fafafa"
-            handle.line(t, error, line_width=3, line_dash='solid')
-            output_file('training_error.html')
-            save(handle)
-        else:
-            handle.line(t, error, line_width=3, line_dash=line_dash, legend=legend, line_color=color)
+            t = np.arange(self._iterations_per_epoch, (self._epochs + 1) * self._iterations_per_epoch,
+                          self._iterations_per_epoch)
+        handle.line(t, error, line_width=3, line_dash=line_dash, legend=legend, line_color=color)
 
-    def export_data(self, handle_loss=None, handle_error=None, handle_norm=None, legend=None, color=None,
-                    line_dash=None, resolution=None):
+    def export_data(self, handle_loss=None, handle_error=None, handle_norm_normalized=None, handle_norm=None,
+                    legend=None, color=None, line_dash=None, resolution=None):
         self._visualize_loss(handle_loss, legend, color, line_dash, resolution)
         self._visualize_error(handle_error, legend, color, line_dash, resolution)
+        self._visualize_norm_normalized(handle_norm_normalized, legend, color, resolution)
         self._visualize_norm(handle_norm, legend, color, resolution)

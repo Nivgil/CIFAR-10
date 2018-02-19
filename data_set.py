@@ -17,7 +17,9 @@ class DataSetCifar10(object):
         self._batch_size = batch_size
         self._permute = permute
         transform = transforms.Compose(
-            [transforms.ToTensor(),
+            [transforms.RandomCrop(32, 4),
+             transforms.RandomHorizontalFlip(),
+             transforms.ToTensor(),
              transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
 
         self.__trainset = torchvision.datasets.CIFAR10(root='./data', train=True,

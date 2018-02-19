@@ -1,19 +1,18 @@
 {
-  "sim_name": "simulation_",
-  "sim_num": "102",
-  "epochs": 5,
-  "resolution": "epoch",
-  "batch_size": 64,
+  "sim_name": "coding_",
+  "sim_num": "0000",
+  "epochs": 2,
+  "batch_size": 128,
   "learning_rate": 0.01,
   "momentum": 0.9,
   "rho": 2.5,
   "tau": 1,
-  "workers_number": 4,
+  "workers_number": 1,
   "live_results": "False",
-  "optimizer": "synchronous",
+  "optimizer": "asynchronous",
   "initialization": "uniform",
   "data_permutation": "False",
   "gpu": "True",
-  "gpu_number": 3
+  "gpu_number": 2
 }
 

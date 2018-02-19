@@ -1,6 +1,7 @@
 import torch
 from torch.autograd import Variable
 import data_set
+import random
 from parameter_server import ParameterServer
 from statistics import Statistics
 import net_model
@@ -29,6 +30,7 @@ def train_nn(params):
             loss = loss_fn(y_pred, labels)
             model.zero_grad()
             loss.backward()
+            # torch.nn.utils.clip_grad_norm(model.parameters(), 0.5)
             server.push(idx % workers_number, net_model.get_model_gradients(model, dtype), t)
         toc = time()
         evaluate_epoch(model, server, stats_train, loss_fn, train_set, t, gpu, dtype, toc - tic, True)
@@ -52,6 +54,9 @@ def initialization(params):
     permute = params.permute
     gpu = params.gpu
     gpu_num = params.gpu_number
+
+    torch.manual_seed(214)
+    random.seed(214)
 
     if gpu is True:
         print('Utilizing GPU')
@@ -109,24 +114,24 @@ def evaluate_epoch(model, server, statistics, loss_fn, data, epoch_num, gpu, dty
         print(' , Loss [{0:.5f}] , Error[{1:.2f}%]'.format(total_loss / idx, 100 * error / idx))
 
 
-# not in use
-def evaluate_iteration(model, server, statistics, loss_fn, data, epoch_num, iter_num, gpu, dtype, log=True):
-    if epoch_num % 1 == 0 and log is True:
-        print('Epoch [{0:1d}], Iteration [{1:1d}]'.format(epoch_num, iter_num), end='')
-    total_loss, error = 0, 0
-    master_weights = server.get_weights()
-    net_model.set_model_paramertes(master_weights, model, gpu)
-    for idx, (data, labels) in enumerate(data, 1):
-        if gpu is True:
-            labels = labels.cuda()
-            data = data.cuda()
-        data, labels = Variable(data.type(dtype)), Variable(labels)
-        y_pred = model(data)
-        total_loss = total_loss + loss_fn(y_pred, labels).data[0]
-        _, class_pred = torch.max(y_pred, 1)
-        error = error + 1 - torch.sum(class_pred.data == labels.data) / len(labels)
-    statistics.save_norm(master_weights)
-    statistics.save_loss(total_loss / idx)
-    statistics.save_error(error / idx)
-    if epoch_num % 1 == 0 and log is True:
-        print(' , Loss [{0:.5f}] , Error[{1:.2f}%]'.format(total_loss / idx, 100 * error / idx))
+# # not in use
+# def evaluate_iteration(model, server, statistics, loss_fn, data, epoch_num, iter_num, gpu, dtype, log=True):
+#     if epoch_num % 1 == 0 and log is True:
+#         print('Epoch [{0:1d}], Iteration [{1:1d}]'.format(epoch_num, iter_num), end='')
+#     total_loss, error = 0, 0
+#     master_weights = server.get_weights()
+#     net_model.set_model_paramertes(master_weights, model, gpu)
+#     for idx, (data, labels) in enumerate(data, 1):
+#         if gpu is True:
+#             labels = labels.cuda()
+#             data = data.cuda()
+#         data, labels = Variable(data.type(dtype)), Variable(labels)
+#         y_pred = model(data)
+#         total_loss = total_loss + loss_fn(y_pred, labels).data[0]
+#         _, class_pred = torch.max(y_pred, 1)
+#         error = error + 1 - torch.sum(class_pred.data == labels.data) / len(labels)
+#     statistics.save_norm(master_weights)
+#     statistics.save_loss(total_loss / idx)
+#     statistics.save_error(error / idx)
+#     if epoch_num % 1 == 0 and log is True:
+#         print(' , Loss [{0:.5f}] , Error[{1:.2f}%]'.format(total_loss / idx, 100 * error / idx))

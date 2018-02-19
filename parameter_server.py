@@ -101,6 +101,17 @@ class SSgd(ParameterServer):
             updated = True
         return updated
 
+    def update_gradient(self):
+        for name, value in self._gradients.items():
+            self._gradients[name] = torch.zeros(value.size())
+
+        for worker_id in range(self._workers_num_):
+            for name, value in self._shards_gradients[worker_id].items():
+                self._gradients[name] = self._gradients[name] + value
+
+        for name, value in self._gradients.items():
+            self._gradients[name] = self._gradients[name] / self._workers_num_
+
     def update_weights(self, epoch=None):
         if epoch >= self._ep[2]:
             lr = self._lr[2]
