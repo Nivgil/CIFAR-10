@@ -1,6 +1,7 @@
 import torch
 import numpy as np
 from copy import deepcopy
+from math import sqrt
 
 
 class ParameterServer(object):
@@ -11,16 +12,25 @@ class ParameterServer(object):
                                                                                          **kwargs)
 
     def __init__(self, learning_rate=None, momentum=None, parameters=None, workers_number=None, gradients=None,
-                 **kwargs):
+                 effective_batch_size=None, gradient_clipping=None,lr_batch_adjustment=None, **kwargs):
         # TODO: Check Input
-        self._learning_rate = learning_rate
+        self._norm_type = 2
+        self._max_norm = gradient_clipping
         self._momentum = momentum
         self._workers_num_ = workers_number
-        self._batch_complete = False
         self._counter = self._workers_num_
 
-        self._lr = (1e-1, 1e-2, 1e-3, 1e-4)
-        self._ep = (1, 81, 122, 164)
+        self._batch_size = effective_batch_size
+
+        self._batch_baseline = 128
+        if lr_batch_adjustment is True:
+            self._lr_factor = sqrt(self._batch_size / self._batch_baseline)
+            self._learning_rate = [self._lr_factor * x for x in learning_rate[0]]
+        else:
+            self._learning_rate = learning_rate[0]
+        self._lr_steps = learning_rate[1]
+        self._iteration_counter = 0
+
 
         self._gradients = deepcopy(gradients)
         self._velocity = deepcopy(gradients)
@@ -59,16 +69,44 @@ class ParameterServer(object):
     def reset_counter(self):
         self._counter = self._workers_num_
 
-    def update_gradient(self):
-        for name, value in self._gradients.items():
-            self._gradients[name] = torch.zeros(value.size())
+    def _gradient_clipping(self, max_norm, norm_type=2):
+        if max_norm == 0:
+            return
+        max_norm = float(max_norm)
+        norm_type = float(norm_type)
+        if norm_type == float('inf'):
+            total_norm = max(self._gradients[name].abs().max() for name in self._gradients)
+        else:
+            total_norm = 0
+            for name in self._gradients:
+                param_norm = self._gradients[name].norm(norm_type)
+                total_norm += param_norm ** norm_type
+            total_norm = total_norm ** (1. / norm_type)
+        clip_coef = max_norm / (total_norm + 1e-6)
+        if clip_coef < 1:
+            for name in self._gradients:
+                self._gradients[name].mul_(clip_coef)
 
-        for worker_id in range(self._workers_num_):
-            for name, value in self._shards_gradients[worker_id].items():
-                self._gradients[name] = self._gradients[name] + value
+    def update_gradient(self, gradient=None):
+        if gradient is not None:
+            self._gradients = gradient
+        else:
+            for name, value in self._gradients.items():
+                self._gradients[name] = torch.zeros(value.size())
+
+            for worker_id in range(self._workers_num_):
+                for name, value in self._shards_gradients[worker_id].items():
+                    self._gradients[name] = self._gradients[name] + value
 
     def get_weights(self):
         return self._weights
+
+    def get_gradients(self):
+        return self._gradients
+
+    def get_learning_rate(self, epoch):
+        closest_smaller_epoch = max([x for x in self._lr_steps if x <= self._iteration_counter])
+        return self._learning_rate[self._lr_steps.index(closest_smaller_epoch)]
 
     def update_weights(self):
         raise NotImplementedError
@@ -94,14 +132,15 @@ class SSgd(ParameterServer):
 
         if self._counter == 0:
             self.update_gradient()
+            self._gradient_clipping(self._max_norm,self._norm_type)
             self.update_weights(epoch)
-            self.reset_grad()
+            # self.reset_grad()
             self.reset_status()
             self.reset_counter()
             updated = True
         return updated
 
-    def update_gradient(self):
+    def update_gradient(self, gradient=None):
         for name, value in self._gradients.items():
             self._gradients[name] = torch.zeros(value.size())
 
@@ -113,12 +152,8 @@ class SSgd(ParameterServer):
             self._gradients[name] = self._gradients[name] / self._workers_num_
 
     def update_weights(self, epoch=None):
-        if epoch >= self._ep[2]:
-            lr = self._lr[2]
-        elif epoch >= self._ep[1]:
-            lr = self._lr[1]
-        else:
-            lr = self._lr[0]
+        self._iteration_counter += 1
+        lr = self.get_learning_rate(epoch)
         for name in self._weights:
             self._velocity[name] = self._momentum * self._velocity[name] - lr * self._gradients[name]
             self._weights[name] = self._weights[name] + self._velocity[name]
@@ -138,20 +173,17 @@ class ASgd(ParameterServer):
 
     def push(self, worker_id, gradient, epoch):
         # TODO: Check Input
-        self.reset_grad()
+        # self.reset_grad()
         self._shards_gradients[worker_id] = gradient
 
-        self.update_gradient()
+        self.update_gradient(gradient)
+        self._gradient_clipping(self._max_norm, self._norm_type)
         self.update_weights(worker_id, epoch)
         return True
 
     def update_weights(self, worker_id=None, epoch=None):
-        if epoch >= self._ep[2]:
-            lr = self._lr[2]
-        elif epoch >= self._ep[1]:
-            lr = self._lr[1]
-        else:
-            lr = self._lr[0]
+        self._iteration_counter += 1
+        lr = self.get_learning_rate(epoch)
         for name in self._weights:
             self._velocity[name] = self._momentum * self._velocity[name] - lr * self._gradients[name]
             self._weights[name] = self._weights[name] + self._velocity[name]
@@ -191,12 +223,8 @@ class AESgd(ParameterServer):
                                                      learning_rate * self._shards_gradients[worker_id][name]
 
     def update_weights(self, worker_id=None, epoch=None):
-        if epoch >= self._ep[2]:
-            lr = self._lr[2]
-        elif epoch >= self._ep[1]:
-            lr = self._lr[1]
-        else:
-            lr = self._lr[0]
+        self._iteration_counter += 1
+        lr = self.get_learning_rate(epoch)
         old_worker_weights = deepcopy(self._shards_weights[worker_id])
         if self._status[worker_id] == self._tau:
             for name in self._weights:

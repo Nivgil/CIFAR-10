@@ -134,7 +134,7 @@ class ResNet(nn.Module):
 
 class ResNet_cifar10(ResNet):
 
-    def __init__(self, num_classes=10, block=BasicBlock, depth=18):
+    def __init__(self, num_classes=10, block=BasicBlock, depth=18, wide_factor=1):
         super(ResNet_cifar10, self).__init__()
         self.inplanes = 16
         n = int((depth - 2) / 6)
@@ -143,22 +143,15 @@ class ResNet_cifar10(ResNet):
         self.bn1 = nn.BatchNorm2d(16)
         self.relu = nn.ReLU(inplace=True)
         self.maxpool = lambda x: x
-        self.layer1 = self._make_layer(block, 16, n)
-        self.layer2 = self._make_layer(block, 32, n, stride=2)
-        self.layer3 = self._make_layer(block, 64, n, stride=2)
+        self.layer1 = self._make_layer(block, 16 * wide_factor, n)
+        self.layer2 = self._make_layer(block, 32 * wide_factor, n, stride=2)
+        self.layer3 = self._make_layer(block, 64 * wide_factor, n, stride=2)
         self.layer4 = lambda x: x
         self.avgpool = nn.AvgPool2d(8)
-        self.fc = nn.Linear(64, num_classes)
+        self.fc = nn.Linear(64 * wide_factor, num_classes)
 
         init_model(self)
-        # self.regime = [
-        #     {'epoch': 0, 'optimizer': 'SGD', 'lr': 1e-1,
-        #      'weight_decay': 1e-4, 'momentum': 0.9},
-        #     {'epoch': 81, 'lr': 1e-2},
-        #     {'epoch': 122, 'lr': 1e-3, 'weight_decay': 0},
-        #     {'epoch': 164, 'lr': 1e-4}
-        # ]
 
 
-def resnet(depth=56):
-    return ResNet_cifar10(num_classes=10, block=BasicBlock, depth=depth)
+def resnet(depth=56, num_classes=10, wide_factor=1):
+    return ResNet_cifar10(num_classes=num_classes, block=BasicBlock, depth=depth, wide_factor=wide_factor)

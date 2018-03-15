@@ -38,9 +38,9 @@ def get_model_gradients(model, dtype):
     return gradients
 
 
-def set_model_paramertes(parameters, model, gpu):
+def set_model_paramertes(parameters, model):
     for name, weight in model.named_parameters():
-        if gpu is True:
+        if torch.cuda.is_available() is True:
             weight.data = parameters[name].cuda()
         else:
             weight.data = parameters[name]

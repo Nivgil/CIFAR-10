@@ -1,28 +1,19 @@
-import argparse
 import os
 import json
 import pickle
 import pandas
-import html
 from bokeh.embed import file_html
 from bokeh.resources import CDN
 from bokeh.layouts import column, row
-from bokeh.plotting import figure, curdoc, output_file, show, save
+from bokeh.plotting import figure, curdoc, output_notebook, show, save
 from bokeh.palettes import Category10 as palette
 from bokeh.models import NumeralTickFormatter
 
 
-def create_graphs(sim_num=None, variable=None, resolution=None):
+def create_graphs(sim_num=None, resolution='iteration'):
     CONFIGURATIONS_DIR = os.path.join(os.path.dirname(__file__))
     if sim_num is None:
-        parser = argparse.ArgumentParser()
-        parser.add_argument('--sim_num', action='store')
-        parser.add_argument('--var', action='store')
-        parser.add_argument('--resolution', action='store', default='epoch')
-        args = vars(parser.parse_args())
-        sim_num = args['sim_num']
-        variable = args['var']
-        resolution = args['resolution']
+        raise Exception('Arguments not specified')
     folder_name = 'simulation_{}'.format(sim_num)
     colors = palette[10]
 
@@ -37,13 +28,13 @@ def create_graphs(sim_num=None, variable=None, resolution=None):
     p_loss.background_fill_color = "#fafafa"
 
     p_weight_norm = figure(plot_width=600, plot_height=600, min_border=10, min_border_left=50,
-                    x_axis_label=x_axis_label, y_axis_label='||w(t)||',
-                    title="The Norm of w(t)", x_axis_type='log', y_axis_type='log')
+                           x_axis_label=x_axis_label, y_axis_label='||w(t)||',
+                           title="The Norm of w(t)", x_axis_type='log', y_axis_type='log')
     p_weight_norm.background_fill_color = "#fafafa"
 
     p_gradient_norm = figure(plot_width=600, plot_height=600, min_border=10, min_border_left=50,
-                    x_axis_label=x_axis_label, y_axis_label='||g||',
-                    title="The Norm of Gradients", x_axis_type='log', y_axis_type='log')
+                             x_axis_label=x_axis_label, y_axis_label='||g||',
+                             title="The Norm of Gradients", x_axis_type='log', y_axis_type='log')
     p_gradient_norm.background_fill_color = "#fafafa"
 
     p_error = figure(plot_width=600, plot_height=600, min_border=10, min_border_left=50,
@@ -60,12 +51,12 @@ def create_graphs(sim_num=None, variable=None, resolution=None):
             stats_test, stats_train = pickle.load(pickle_in)
         with open(os.path.join(CONFIGURATIONS_DIR, folder_name, file + '.log'), 'rb') as log_file:
             params_dict = json.load(log_file)
-        # var = params_dict[variable]
         log_table = Table(params_dict)
         for key in params_dict.keys():
             log_table.table[key].append(params_dict[key])
         idx += 1
-        legend = params_dict['optimizer']+'_'+str(params_dict['batch_size'])+'_'+str(params_dict['workers_number'])
+        legend = params_dict['optimizer'] + '_' + str(params_dict['batch_size']) + '_' + str(
+            params_dict['workers_number'])
         stats_train.export_data(handle_loss=p_loss,
                                 handle_error=p_error,
                                 handle_weight_norm=p_weight_norm,
@@ -90,20 +81,22 @@ def create_graphs(sim_num=None, variable=None, resolution=None):
 
     df = pandas.DataFrame(log_table.table)
 
-    styles = [
-        hover(),
-        dict(selector="th", props=[("font-size", "110%"),
-                                   ("text-align", "center")]),
-        dict(selector="caption", props=[("caption-side", "bottom")])
-    ]
-    table_html = (df.style.set_table_styles(styles)).render()
+    # styles = [
+    #     hover(),
+    #     dict(selector="th", props=[("font-size", "110%"),
+    #                                ("text-align", "center")]),
+    #     dict(selector="caption", props=[("caption-side", "bottom")])
+    # ]
+    # table_html = (df.style.set_table_styles(styles)).render()
 
     grid = column(row(p_loss, p_error), row(p_weight_norm, p_gradient_norm))
-    html_norm = file_html(grid, CDN, folder_name)
-    with open(folder_name + '/' + folder_name + '.html', 'a') as html_file:
-        html_file.write(html_norm)
-    with open(folder_name + '/' + folder_name + '_log.html', 'a') as html_file:
-        html_file.write(table_html)
+    return [p_loss, p_error, p_weight_norm, p_gradient_norm]
+
+    # html_norm = file_html(grid, CDN, folder_name)
+    # with open(folder_name + '/' + folder_name + '.html', 'a') as html_file:
+    #     html_file.write(html_norm)
+    # with open(folder_name + '/' + folder_name + '_log.html', 'a') as html_file:
+    #     html_file.write(table_html)
 
 
 def hover(hover_color="#ffff99"):
